@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body { 
+      width: 100%;
+      min-width: 300px;
+      max-width: 800px;
+      min-height: 600px;
+      padding: 0;
+      margin: 0;
+      font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      background: #ffffff;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #003399 0%, #0e1831 100%);
+      color: white;
+      padding: clamp(16px, 3vw, 24px);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 3px solid #2f8dfe;
+    }
+    
+    .header-logo {
+      height: clamp(24px, 5vw, 32px);
+      width: auto;
+    }
+    
+    .header-content {
+      flex: 1;
+    }
+    
+    .header h1 {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      font-size: clamp(16px, 3.5vw, 20px);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    
+    .header p {
+      margin: 4px 0 0 0;
+      font-size: clamp(11px, 2.5vw, 13px);
+      opacity: 0.9;
+      font-weight: 400;
+    }
+    
+    .controls {
+      padding: clamp(16px, 3vw, 24px);
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    
+    .tab {
+      padding: 10px 20px;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      color: #64748b;
+      font-size: clamp(13px, 2.5vw, 14px);
+      font-weight: 600;
+      font-family: 'Poppins', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: -2px;
+    }
+    
+    .tab:hover {
+      color: #003399;
+    }
+    
+    .tab.active {
+      color: #003399;
+      border-bottom-color: #003399;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .custom-input {
+      width: 100%;
+      min-height: 120px;
+      padding: 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: clamp(13px, 2.5vw, 14px);
+      font-family: 'Roboto', sans-serif;
+      resize: vertical;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+    
+    .custom-input:focus {
+      outline: none;
+      border-color: #003399;
+    }
+    
+    .custom-input::placeholder {
+      color: #94a3b8;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: clamp(12px, 2.5vw, 14px);
+      border: none;
+      border-radius: 6px;
+      font-size: clamp(13px, 2.5vw, 15px);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 10px;
+      font-family: 'Poppins', sans-serif;
+      letter-spacing: -0.01em;
+    }
+    
+    .btn-primary {
+      background: #003399;
+      color: white;
+      box-shadow: 0 2px 4px rgba(0, 51, 153, 0.2);
+    }
+    
+    .btn-primary:hover {
+      background: #002266;
+      box-shadow: 0 4px 8px rgba(0, 51, 153, 0.3);
+      transform: translateY(-1px);
+    }
+    
+    .btn-primary:disabled {
+      background: #cbd5e1;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+    
+    .btn-secondary {
+      background: white;
+      color: #003399;
+      border: 2px solid #003399;
+    }
+    
+    .btn-secondary:hover {
+      background: #f0f4ff;
+      border-color: #002266;
+    }
+    
+    .results-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: clamp(16px, 3vw, 24px);
+      background: white;
+    }
+    
+    .question-answer {
+      background: white;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      padding: clamp(12px, 2.5vw, 16px);
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      transition: all 0.2s;
+    }
+    
+    .question-answer:hover {
+      border-color: #2f8dfe;
+      box-shadow: 0 4px 12px rgba(47, 141, 254, 0.15);
+    }
+    
+    .question {
+      font-weight: 600;
+      color: #0e1831;
+      margin-bottom: 10px;
+      font-size: clamp(12px, 2.5vw, 14px);
+      font-family: 'Poppins', sans-serif;
+      line-height: 1.5;
+    }
+    
+    .answer {
+      color: #475569;
+      font-size: clamp(12px, 2.5vw, 14px);
+      line-height: 1.8;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    
+    .answer p {
+      margin: 0 0 12px 0;
+    }
+    
+    .answer p:last-child {
+      margin-bottom: 0;
+    }
+    
+    .answer ul, .answer ol {
+      margin: 8px 0;
+      padding-left: 24px;
+    }
+    
+    .answer li {
+      margin-bottom: 6px;
+    }
+    
+    .answer-btn {
+      width: 100%;
+      padding: clamp(8px, 2vw, 10px);
+      background: #003399;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: clamp(12px, 2.5vw, 14px);
+      font-weight: 600;
+      transition: all 0.2s;
+      font-family: 'Poppins', sans-serif;
+    }
+    
+    .answer-btn:hover {
+      background: #002266;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0, 51, 153, 0.3);
+    }
+    
+    .answer-btn:disabled {
+      background: #cbd5e1;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .processing {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: #fff7ed;
+      border: 2px solid #ff6d0e;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: clamp(12px, 2.5vw, 14px);
+      color: #9a3412;
+      font-weight: 500;
+    }
+    
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 3px solid #fed7aa;
+      border-top: 3px solid #ff6d0e;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .error {
+      background: #fee2e2;
+      border: 2px solid #ef4444;
+      color: #991b1b;
+      padding: 14px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: clamp(12px, 2.5vw, 14px);
+      font-weight: 500;
+    }
+    
+    .success {
+      background: #d1fae5;
+      border: 2px solid #10b981;
+      color: #065f46;
+      padding: 14px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: clamp(12px, 2.5vw, 14px);
+      font-weight: 500;
+    }
+    
+    .progress {
+      background: #e2e8f0;
+      height: 6px;
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 12px 0;
+    }
+    
+    .progress-bar {
+      background: linear-gradient(90deg, #003399 0%, #2f8dfe 100%);
+      height: 100%;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 10px rgba(47, 141, 254, 0.5);
+    }
+    
+    .stats {
+      display: flex;
+      gap: clamp(16px, 3vw, 24px);
+      font-size: clamp(11px, 2.5vw, 13px);
+      color: #64748b;
+      margin-top: 12px;
+    }
+    
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .stat-value {
+      font-size: clamp(18px, 3.5vw, 22px);
+      font-weight: 700;
+      color: #003399;
+      font-family: 'Poppins', sans-serif;
+    }
+    
+    .empty-state {
+      text-align: center;
+      color: #94a3b8;
+      padding: 60px 20px;
+    }
+    
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+    
+    .empty-state p {
+      font-size: clamp(13px, 2.5vw, 15px);
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-content">
+      <h1>RFX Agent</h1>
+      <p>Powered by SnapLogic</p>
+    </div>
+    <img src="https://www.snaplogic.com/media-kit/Logocombo_SnapLogic_RGB-rev.png" alt="SnapLogic" class="header-logo">
+  </div>
+  
+  <div class="controls">
+    <div class="tabs">
+      <button class="tab active" data-tab="questions">Questions</button>
+      <button class="tab" data-tab="custom">Custom Query</button>
+    </div>
+    
+    <div id="questionsTab" class="tab-content active">
+      <button class="btn btn-primary" id="startBtn">
+        Extract Questions from Webpage
+      </button>
+      <button class="btn btn-primary" id="answerAllBtn" style="display:none;">
+        Answer All Questions
+      </button>
+      <button class="btn btn-secondary" id="exportBtn" style="display:none;">
+        Export Answers
+      </button>
+      <button class="btn btn-secondary" id="clearBtn">
+        Reset
+      </button>
+      <div class="progress" id="progressContainer" style="display:none;">
+        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+      </div>
+      <div class="stats" id="stats" style="display:none;">
+        <div class="stat-item">
+          <span class="stat-value" id="totalQuestions">0</span>
+          <span>Questions</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="answeredQuestions">0</span>
+          <span>Answered</span>
+        </div>
+      </div>
+    </div>
+    
+    <div id="customTab" class="tab-content">
+      <textarea id="customQuery" class="custom-input" placeholder="Type your question here..."></textarea>
+      <button class="btn btn-primary" id="sendCustomBtn">
+        Send Custom Query
+      </button>
+    </div>
+  </div>
+  
+  <div class="results-container" id="resultsContainer">
+    <div class="empty-state">
+      <img src="https://pbs.twimg.com/profile_images/1676693069863997440/KBpJem3z_400x400.png" alt="SnapLogic" style="width: 80px; height: 80px; margin-bottom: 16px; opacity: 0.5;">
+      <p><strong>Ready to process your RFX document</strong></p>
+      <p>Click "Extract Questions from Webpage" to begin</p>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
