@@ -1,16 +1,18 @@
 // Configuration
-const SNAPLOGIC_AI_URL = "https://emea.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/snapLogic4snapLogic/AutoRFPAgent/chrome_extension_api";
-const SNAPLOGIC_AI_TOKEN = "KqRkbzVyQAVjV5zaOzBd4tBsHG6AoGBX";
-const SNAPLOGIC_KB_URL = "https://emea.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/snapLogic4snapLogic/AutoRFPAgent/ApiRfpAgent";
-const SNAPLOGIC_KB_TOKEN = "nNpLBJrd8FAtFh3TVC9xR97QAwWtJHgF";
+const SNAPLOGIC_API_URL = "https://emea.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/snapLogic4snapLogic/AutoRFPAgent/chrome_extension_api";
+const SNAPLOGIC_API_TOKEN = "BEARER_TOKEN";
 
+// State
 let rfpContent = null;
 let questions = [];
 let answers = [];
 let isProcessing = false;
 let processingCount = 0;
 
-// State management
+// ============================================================================
+// State Management
+// ============================================================================
+
 async function loadState() {
   try {
     const result = await chrome.storage.local.get(['rfpContent', 'questions', 'answers']);
@@ -22,8 +24,7 @@ async function loadState() {
       if (questions.length > 0) {
         displayAllQuestions(questions);
         updateProgress(answers.filter(a => a).length, questions.length);
-        document.getElementById('progressContainer').style.display = 'block';
-        document.getElementById('stats').style.display = 'flex';
+        showProgressUI();
         
         if (answers.filter(a => a).length === questions.length) {
           document.getElementById('exportBtn').style.display = 'block';
@@ -53,39 +54,80 @@ async function clearState() {
     rfpContent = null;
     questions = [];
     answers = [];
-    document.getElementById('resultsContainer').innerHTML = '<div class="empty-state"><img src="https://pbs.twimg.com/profile_images/1676693069863997440/KBpJem3z_400x400.png" alt="SnapLogic" style="width: 80px; height: 80px; margin-bottom: 16px; opacity: 0.5;"><p><strong>Ready to process your RFX document</strong></p><p>Click "Extract Questions from Webpage" to begin</p></div>';
-    document.getElementById('progressContainer').style.display = 'none';
-    document.getElementById('stats').style.display = 'none';
-    document.getElementById('exportBtn').style.display = 'none';
-    document.getElementById('answerAllBtn').style.display = 'none';
-    updateProgress(0, 0);
+    resetUI();
   } catch (error) {
     console.error('Error clearing state:', error);
   }
 }
 
-// Call SnapLogic Knowledge Base API
-async function querySnapLogicKB(question) {
-  const response = await fetch(SNAPLOGIC_KB_URL, {
+// ============================================================================
+// API Calls
+// ============================================================================
+
+async function callSnapLogicAPI(action, payload) {
+  const response = await fetch(SNAPLOGIC_API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SNAPLOGIC_KB_TOKEN}`
+      'Authorization': `Bearer ${SNAPLOGIC_API_TOKEN}`
     },
     body: JSON.stringify({
-      prompt: [question]
+      action: action,
+      ...payload
     })
   });
-  
+
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`SnapLogic KB error ${response.status}: ${errorText.substring(0, 200)}`);
+    throw new Error(`SnapLogic API error: ${response.status}`);
   }
-  
+
   return await response.json();
 }
 
-// Extract RFP content from page
+async function extractQuestionsWithSnapLogic(content) {
+  const data = await callSnapLogicAPI('extract_questions', {
+    content: content.substring(0, 20000)
+  });
+  
+  // Handle different response formats
+  if (Array.isArray(data) && data.length > 0 && data[0].content) {
+    return data[0].content;
+  } else if (data.content && Array.isArray(data.content)) {
+    return data.content;
+  }
+  
+  return data;
+}
+
+async function generateAnswer(question) {
+  processingCount++;
+  if (processingCount === 1) {
+    showProcessing('Asking the magic 8-ball...');
+  }
+  
+  try {
+    const data = await callSnapLogicAPI('answer_question', { question });
+    
+    // Handle different response formats
+    if (Array.isArray(data) && data.length > 0 && data[0].response) {
+      return data[0].response;
+    } else if (data.answer) {
+      return data.answer;
+    }
+    
+    return data.response || JSON.stringify(data);
+  } finally {
+    processingCount--;
+    if (processingCount === 0) {
+      removeProcessing();
+    }
+  }
+}
+
+// ============================================================================
+// Content Extraction
+// ============================================================================
+
 function extractRFPContent() {
   function getTextUntilNextHeading(heading) {
     let text = '';
@@ -109,79 +151,20 @@ function extractRFPContent() {
   };
 }
 
-// Extract questions using SnapLogic AI
-async function extractQuestionsWithSnapLogic(rfpContent) {
-  const response = await fetch(SNAPLOGIC_AI_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${SNAPLOGIC_AI_TOKEN}`
-    },
-    body: JSON.stringify({
-      action: 'extract_questions',
-      content: rfpContent.fullText.substring(0, 20000)
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`SnapLogic AI error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  
-  // Handle response: [{"content": [...]}] or {"content": [...]}
-  if (Array.isArray(data) && data.length > 0 && data[0].content) {
-    return data[0].content;
-  } else if (data.content && Array.isArray(data.content)) {
-    return data.content;
-  }
-  
-  return data;
-}
-
-// Generate answer using SnapLogic AI (which queries KB internally)
-async function generateAnswer(question) {
-  processingCount++;
-  if (processingCount === 1) {
-    showProcessing(`Asking the magic 8-ball...`);
-  }
-  
-  try {
-    const response = await fetch(SNAPLOGIC_AI_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SNAPLOGIC_AI_TOKEN}`
-      },
-      body: JSON.stringify({
-        action: 'answer_question',
-        question: question
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`SnapLogic AI error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    // Handle wrapped response: [{"response": "..."}] or {"answer": "..."}
-    if (Array.isArray(data) && data.length > 0 && data[0].response) {
-      return data[0].response;
-    } else if (data.answer) {
-      return data.answer;
-    }
-    
-    return data.response || JSON.stringify(data);
-  } finally {
-    processingCount--;
-    if (processingCount === 0) {
-      removeProcessing();
-    }
-  }
-}
-
+// ============================================================================
 // UI Functions
+// ============================================================================
+
+function formatMarkdownToHTML(text) {
+  return text
+    .replace(/### (.*?)(\n|$)/g, '<strong>$1</strong><br>')
+    .replace(/## (.*?)(\n|$)/g, '<strong>$1</strong><br>')
+    .replace(/# (.*?)(\n|$)/g, '<strong>$1</strong><br>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+}
+
 function updateProgress(current, total) {
   const progressBar = document.getElementById('progressBar');
   const percentage = (current / total) * 100;
@@ -189,6 +172,30 @@ function updateProgress(current, total) {
   
   document.getElementById('totalQuestions').textContent = total;
   document.getElementById('answeredQuestions').textContent = current;
+}
+
+function showProgressUI() {
+  document.getElementById('progressContainer').style.display = 'block';
+  document.getElementById('stats').style.display = 'flex';
+  document.getElementById('answerAllBtn').style.display = 'block';
+}
+
+function resetUI() {
+  const container = document.getElementById('resultsContainer');
+  container.innerHTML = `
+    <div class="empty-state">
+      <img src="https://pbs.twimg.com/profile_images/1676693069863997440/KBpJem3z_400x400.png" 
+           alt="SnapLogic" 
+           style="width: 80px; height: 80px; margin-bottom: 16px; opacity: 0.5;">
+      <p><strong>Ready to process your RFX document</strong></p>
+      <p>Click "Extract Questions from Webpage" to begin</p>
+    </div>
+  `;
+  document.getElementById('progressContainer').style.display = 'none';
+  document.getElementById('stats').style.display = 'none';
+  document.getElementById('exportBtn').style.display = 'none';
+  document.getElementById('answerAllBtn').style.display = 'none';
+  updateProgress(0, 0);
 }
 
 function displayAllQuestions(questions) {
@@ -204,14 +211,7 @@ function displayAllQuestions(questions) {
     let answerContent;
     
     if (answer) {
-      // Convert markdown to HTML formatting
-      let formattedAnswer = answer.answer
-        .replace(/### (.*?)(\n|$)/g, '<strong>$1</strong><br>')  // ### headers to bold
-        .replace(/## (.*?)(\n|$)/g, '<strong>$1</strong><br>')   // ## headers to bold
-        .replace(/# (.*?)(\n|$)/g, '<strong>$1</strong><br>')    // # headers to bold
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')         // **bold** to <strong>
-        .replace(/\n\n/g, '<br><br>')                             // double line breaks
-        .replace(/\n/g, '<br>');                                  // single line breaks
+      const formattedAnswer = formatMarkdownToHTML(answer.answer);
       answerContent = `<div class="answer">${formattedAnswer}</div>`;
     } else {
       answerContent = `
@@ -229,95 +229,13 @@ function displayAllQuestions(questions) {
     container.appendChild(qaDiv);
   });
   
+  // Attach event listeners to answer buttons
   document.querySelectorAll('.answer-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const index = parseInt(e.target.getAttribute('data-index'));
       await answerSingleQuestion(index);
     });
   });
-}
-
-async function answerSingleQuestion(index) {
-  const q = questions[index];
-  const btn = document.querySelector(`[data-index="${index}"]`);
-  
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Answering...';
-  }
-  
-  try {
-    const answer = await generateAnswer(q.question);
-    
-    answers[index] = {
-      question: q.question,
-      answer: answer,
-      section: q.section,
-      priority: q.priority
-    };
-    
-    await saveState();
-    
-    // Update only this specific answer, don't refresh everything
-    const qaDiv = document.getElementById(`qa-${index}`);
-    if (qaDiv) {
-      const formattedAnswer = answer
-        .replace(/### (.*?)(\n|$)/g, '<strong>$1</strong><br>')
-        .replace(/## (.*?)(\n|$)/g, '<strong>$1</strong><br>')
-        .replace(/# (.*?)(\n|$)/g, '<strong>$1</strong><br>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\n\n/g, '<br><br>')
-        .replace(/\n/g, '<br>');
-      const answerDiv = qaDiv.querySelector('.answer');
-      answerDiv.innerHTML = formattedAnswer;
-      answerDiv.style.padding = '16px';
-      answerDiv.style.background = '#f8fafc';
-    }
-    
-    const answeredCount = answers.filter(a => a).length;
-    updateProgress(answeredCount, questions.length);
-    
-    if (answeredCount === questions.length) {
-      document.getElementById('exportBtn').style.display = 'block';
-      showSuccess('All questions answered!');
-    }
-    
-  } catch (error) {
-    console.error(`Error answering question ${index + 1}:`, error);
-    showError(error.message);
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Retry';
-    }
-  }
-}
-
-async function answerAllQuestions() {
-  const answerAllBtn = document.getElementById('answerAllBtn');
-  answerAllBtn.disabled = true;
-  answerAllBtn.textContent = 'Answering all questions...';
-  
-  showProcessing('Sending all questions to SnapLogic in parallel...');
-  
-  // Fire off all questions at once in parallel
-  const promises = questions.map((q, index) => {
-    if (!answers[index]) {
-      return answerSingleQuestion(index);
-    }
-    return Promise.resolve(); // Skip already answered
-  });
-  
-  try {
-    await Promise.all(promises);
-    removeProcessing();
-    showSuccess('All questions answered!');
-  } catch (error) {
-    removeProcessing();
-    showError('Some questions failed to answer');
-  } finally {
-    answerAllBtn.disabled = false;
-    answerAllBtn.textContent = 'Answer All Questions';
-  }
 }
 
 function showProcessing(message) {
@@ -360,6 +278,87 @@ function showSuccess(message) {
   setTimeout(() => successDiv.remove(), 5000);
 }
 
+// ============================================================================
+// Core Processing Functions
+// ============================================================================
+
+async function answerSingleQuestion(index) {
+  const q = questions[index];
+  const btn = document.querySelector(`[data-index="${index}"]`);
+  
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Answering...';
+  }
+  
+  try {
+    const answer = await generateAnswer(q.question);
+    
+    answers[index] = {
+      question: q.question,
+      answer: answer,
+      section: q.section,
+      priority: q.priority
+    };
+    
+    await saveState();
+    
+    // Update the specific answer in the UI
+    const qaDiv = document.getElementById(`qa-${index}`);
+    if (qaDiv) {
+      const formattedAnswer = formatMarkdownToHTML(answer);
+      const answerDiv = qaDiv.querySelector('.answer');
+      answerDiv.innerHTML = formattedAnswer;
+      answerDiv.style.padding = '16px';
+      answerDiv.style.background = '#f8fafc';
+    }
+    
+    const answeredCount = answers.filter(a => a).length;
+    updateProgress(answeredCount, questions.length);
+    
+    if (answeredCount === questions.length) {
+      document.getElementById('exportBtn').style.display = 'block';
+      showSuccess('All questions answered!');
+    }
+    
+  } catch (error) {
+    console.error(`Error answering question ${index + 1}:`, error);
+    showError(error.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Retry';
+    }
+  }
+}
+
+async function answerAllQuestions() {
+  const answerAllBtn = document.getElementById('answerAllBtn');
+  answerAllBtn.disabled = true;
+  answerAllBtn.textContent = 'Answering all questions...';
+  
+  showProcessing('Sending all questions to SnapLogic in parallel...');
+  
+  // Process all unanswered questions in parallel
+  const promises = questions.map((q, index) => {
+    if (!answers[index]) {
+      return answerSingleQuestion(index);
+    }
+    return Promise.resolve();
+  });
+  
+  try {
+    await Promise.all(promises);
+    removeProcessing();
+    showSuccess('All questions answered!');
+  } catch (error) {
+    removeProcessing();
+    showError('Some questions failed to answer');
+  } finally {
+    answerAllBtn.disabled = false;
+    answerAllBtn.textContent = 'Answer All Questions';
+  }
+}
+
 async function processRFP() {
   if (isProcessing) return;
   
@@ -369,11 +368,10 @@ async function processRFP() {
   startBtn.textContent = 'Processing...';
   
   document.getElementById('resultsContainer').innerHTML = '';
-  document.getElementById('progressContainer').style.display = 'block';
-  document.getElementById('stats').style.display = 'flex';
+  showProgressUI();
   
   try {
-    // Extract content
+    // Extract content from webpage
     showProcessing('Extracting content from webpage...');
     
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -385,9 +383,9 @@ async function processRFP() {
     rfpContent = results[0].result;
     removeProcessing();
     
-    // Extract questions
+    // Extract questions using SnapLogic
     showProcessing('Rotating the tires...');
-    questions = await extractQuestionsWithSnapLogic(rfpContent);
+    questions = await extractQuestionsWithSnapLogic(rfpContent.fullText);
     removeProcessing();
     
     showSuccess(`Found ${questions.length} questions`);
@@ -429,9 +427,72 @@ function exportAnswers() {
   showSuccess('Answers exported successfully!');
 }
 
-// Event listeners
+async function handleCustomQuery() {
+  const query = document.getElementById('customQuery').value.trim();
+  if (!query) {
+    showError('Please enter a question');
+    return;
+  }
+  
+  const btn = document.getElementById('sendCustomBtn');
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+  
+  // Show loading indicator
+  const customTab = document.getElementById('customTab');
+  let customLoading = document.createElement('div');
+  customLoading.className = 'processing';
+  customLoading.id = 'customLoading';
+  customLoading.innerHTML = '<div class="spinner"></div><span>Milking the cows...</span>';
+  customTab.appendChild(customLoading);
+  
+  try {
+    const data = await callSnapLogicAPI('answer_question', { question: query });
+    
+    // Handle different response formats
+    let formattedAnswer = data;
+    if (Array.isArray(data) && data.length > 0 && data[0].response) {
+      formattedAnswer = data[0].response;
+    } else if (data.answer) {
+      formattedAnswer = data.answer;
+    }
+    
+    customLoading.remove();
+    
+    // Display result
+    const container = document.getElementById('resultsContainer');
+    const resultDiv = document.createElement('div');
+    resultDiv.className = 'question-answer';
+    
+    const htmlAnswer = formatMarkdownToHTML(formattedAnswer);
+    
+    resultDiv.innerHTML = `
+      <div class="question">Custom Query: ${query}</div>
+      <div class="answer">${htmlAnswer}</div>
+    `;
+    container.insertBefore(resultDiv, container.firstChild);
+    
+    showSuccess('Query completed');
+    document.getElementById('customQuery').value = '';
+    
+  } catch (error) {
+    if (customLoading) customLoading.remove();
+    showError(error.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send Custom Query';
+  }
+}
+
+// ============================================================================
+// Event Listeners
+// ============================================================================
+
 document.getElementById('startBtn').addEventListener('click', processRFP);
 document.getElementById('exportBtn').addEventListener('click', exportAnswers);
+document.getElementById('answerAllBtn').addEventListener('click', answerAllQuestions);
+document.getElementById('sendCustomBtn').addEventListener('click', handleCustomQuery);
+
 document.getElementById('clearBtn').addEventListener('click', async () => {
   if (confirm('Clear all saved progress? This cannot be undone.')) {
     await clearState();
@@ -453,88 +514,10 @@ document.querySelectorAll('.tab').forEach(tab => {
   });
 });
 
-// Custom query
-document.getElementById('sendCustomBtn').addEventListener('click', async () => {
-  const query = document.getElementById('customQuery').value.trim();
-  if (!query) {
-    showError('Please enter a question');
-    return;
-  }
-  
-  const btn = document.getElementById('sendCustomBtn');
-  btn.disabled = true;
-  btn.textContent = 'Processing...';
-  
-  // Create custom query specific loading in the custom tab area
-  const customTab = document.getElementById('customTab');
-  let customLoading = document.createElement('div');
-  customLoading.className = 'processing';
-  customLoading.id = 'customLoading';
-  customLoading.innerHTML = '<div class="spinner"></div><span>Milking the cows...</span>';
-  customTab.appendChild(customLoading);
-  
-  try {
-    const response = await fetch(SNAPLOGIC_AI_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SNAPLOGIC_AI_TOKEN}`
-      },
-      body: JSON.stringify({
-        action: 'answer_question',
-        question: query
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`SnapLogic AI error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    // Handle wrapped response: [{"response": "..."}]
-    let formattedAnswer = data;
-    if (Array.isArray(data) && data.length > 0 && data[0].response) {
-      formattedAnswer = data[0].response;
-    } else if (data.answer) {
-      formattedAnswer = data.answer;
-    }
-    
-    customLoading.remove();
-    
-    // Display formatted result in results container
-    const container = document.getElementById('resultsContainer');
-    const resultDiv = document.createElement('div');
-    resultDiv.className = 'question-answer';
-    
-    // Convert markdown to HTML
-    const htmlAnswer = formattedAnswer
-      .replace(/### (.*?)(\n|$)/g, '<strong>$1</strong><br>')
-      .replace(/## (.*?)(\n|$)/g, '<strong>$1</strong><br>')
-      .replace(/# (.*?)(\n|$)/g, '<strong>$1</strong><br>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n\n/g, '<br><br>')
-      .replace(/\n/g, '<br>');
-    
-    resultDiv.innerHTML = `
-      <div class="question">Custom Query: ${query}</div>
-      <div class="answer">${htmlAnswer}</div>
-    `;
-    container.insertBefore(resultDiv, container.firstChild);
-    
-    showSuccess('Query completed');
-    document.getElementById('customQuery').value = '';
-    
-  } catch (error) {
-    if (customLoading) customLoading.remove();
-    showError(error.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Send Custom Query';
-  }
-});
-
+// ============================================================================
 // Initialize
+// ============================================================================
+
 (async function init() {
   await loadState();
   

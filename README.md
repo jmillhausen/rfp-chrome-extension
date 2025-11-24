@@ -27,14 +27,20 @@ AI-powered Chrome extension that automatically extracts and answers RFP, RFI, an
      - `icon128.png`
    - Place them all in a single folder (e.g., `SnapLogic-RFX-Agent`)
 
-2. **Install in Chrome**
+2. **Insert Bearer Token**
+   - Reach out to Jordan Millhausen (jmillhausen@snaplogic.com) for bearer token
+   - Open 'popup.js' in a text editor or other code editor
+   - Find SNAPLOGIC_API_TOKEN = "BEARER_TOKEN"
+   - Replace BEARER_TOKEN with the actual bearer token 
+
+3. **Install in Chrome**
    - Open Chrome and go to `chrome://extensions/`
    - Enable **Developer mode** (toggle in top-right corner)
    - Click **Load unpacked**
    - Select the folder containing all the extension files
    - The SnapLogic icon should appear in your Chrome toolbar
 
-3. **Pin the Extension** (Optional)
+4. **Pin the Extension** (Optional)
    - Click the puzzle piece icon in Chrome toolbar
    - Find "SnapLogic RFX Agent"
    - Click the pin icon to keep it visible
@@ -64,6 +70,7 @@ AI-powered Chrome extension that automatically extracts and answers RFP, RFI, an
 2. The AI will query the SnapLogic knowledge base and generate a response
 3. The formatted answer appears automatically
 4. Repeat for each question you want answered
+5. You may also click "Answer all questions" 
 
 ### Custom Queries
 
@@ -85,15 +92,10 @@ The extension connects to two SnapLogic pipelines:
 
 ### AI Pipeline (Question Extraction & Answer Formatting)
 - **URL**: `https://emea.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/snapLogic4snapLogic/AutoRFPAgent/chrome_extension_api`
-- **Bearer Token**: `KqRkbzVyQAVjV5zaOzBd4tBsHG6AoGBX`
+- **Bearer Token**: Reach out to Jordan Millhausen @ jmillhausen@snaplogic.com for Bearer token
 - **Purpose**: 
   - Extracts questions from webpage content
   - Formats answers from knowledge base into professional RFP responses
-
-### Knowledge Base Pipeline
-- **URL**: `https://emea.snaplogic.com/api/1/rest/slsched/feed/ConnectFasterInc/snapLogic4snapLogic/AutoRFPAgent/ApiRfpAgent`
-- **Bearer Token**: `nNpLBJrd8FAtFh3TVC9xR97QAwWtJHgF`
-- **Purpose**: Contains SnapLogic product information and documentation
 
 ### Pipeline Requirements
 
